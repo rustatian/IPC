@@ -8,14 +8,14 @@ System V implementation of  shared memory and semaphores to syncronize.
 
 Process1: Initialize a semaphore, and Add to semaphores set (semaphore 0 in example) value 1. And start doing some interprocess work (write to the shared memory for example).
 ```go
-	s, err := NewSemaphore(0x12334, 1, 0666, true, IPC_CREAT)
-	if err != nil {
-		panic(err)
-	}
-	err = s.Add(0)
-	if err != nil {
-		panic(err)
-	}
+s, err := NewSemaphore(0x12334, 1, 0666, true, IPC_CREAT)
+if err != nil {
+	panic(err)
+}
+err = s.Add(0)
+if err != nil {
+	panic(err)
+}
   ```
   
   After work will be done, just unlock semaphore:
