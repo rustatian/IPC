@@ -41,22 +41,20 @@ const (
 )
 
 type SharedMemorySegment struct {
-	path    *byte
+	key     int
 	size    uint
 	flags   Flag
 	address uintptr
 	data    []byte
 }
 
-// key
-// size
-//(S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)
-func NewSharedMemorySegment(key string, size uint, permission int, flags ...Flag) (*SharedMemorySegment, error) {
-	path, err := syscall.BytePtrFromString(key)
-	if err != nil {
-		return nil, ErrCStringCreation
-	}
-
+/* The args are:
+key - int, used as uniques identifier for the shared memory segment
+size - uint, size in bytes to allocate
+permission - int, if passed zero, 0600 will be used by default
+flags - IPC_CREAT, IPC_EXCL, IPC_NOWAIT. More info can be found here https://github.com/torvalds/linux/blob/master/include/uapi/linux/ipc.h
+*/
+func NewSharedMemorySegment(key int, size uint, permission int, flags ...Flag) (*SharedMemorySegment, error) {
 	// OR (bitwise) flags
 	var flgs Flag
 	for i := 0; i < len(flags); i++ {
@@ -71,8 +69,8 @@ func NewSharedMemorySegment(key string, size uint, permission int, flags ...Flag
 
 	// second arg could be uintptr(0) - auto
 	// third arg - size
-	// fourth - shmflg (flags)
-	id, _, errno := syscall.RawSyscall(syscall.SYS_SHMGET, uintptr(unsafe.Pointer(path)), uintptr(size), uintptr(flgs))
+	// fourth - shmflg (flags) 140557580029952
+	id, _, errno := syscall.RawSyscall(syscall.SYS_SHMGET, uintptr(key), uintptr(size), uintptr(flgs))
 	if errno != 0 {
 		return nil, os.NewSyscallError("SYS_SHMGET", errno)
 	}
@@ -83,16 +81,16 @@ func NewSharedMemorySegment(key string, size uint, permission int, flags ...Flag
 	}
 
 	segment := &SharedMemorySegment{
-		path:    path,
+		key:     key,
 		size:    size,
 		flags:   flgs,
 		address: id,
-		//data:    make([]byte, 0, 0),
+		data:    make([]byte, 0, 0),
 	}
 
 	// construct slice from memory segment
 	sh := (*reflect.SliceHeader)(unsafe.Pointer(&segment.data))
-	sh.Len = 0
+	sh.Len = int(size)
 	sh.Cap = int(size)
 	sh.Data = shmAddr
 
@@ -104,7 +102,19 @@ func NewSharedMemorySegment(key string, size uint, permission int, flags ...Flag
 // write is not thread safe operation
 // should be protected via semaphore
 func (s *SharedMemorySegment) Write(data []byte) {
-	s.data = append(s.data, data...)
+	for i := 0; i < len(data); i++ {
+		s.data[i] = data[i]
+	}
+}
+
+func (s *SharedMemorySegment) Read(length int, data []byte) error {
+	if len(data) < length {
+		return errors.New("allocate []byte with provided length")
+	}
+	for i := 0; i < length; i++ {
+		data[i] = s.data[i]
+	}
+	return nil
 }
 
 func (s *SharedMemorySegment) Detach() error {
@@ -114,8 +124,4 @@ func (s *SharedMemorySegment) Detach() error {
 		return errors.New(errno.Error())
 	}
 	return nil
-}
-
-func (s *SharedMemorySegment) Read() []byte {
-	return s.data
 }

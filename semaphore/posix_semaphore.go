@@ -50,7 +50,7 @@ const (
 )
 
 type Semaphore struct {
-	key    *byte
+	key    int
 	nsems  int
 	semflg Flag
 
@@ -63,12 +63,7 @@ type sembuf struct {
 	sem_flg int16  // /* Operation flags (IPC_NOWAIT and SEM_UNDO) */
 }
 
-func NewSemaphore(key string, nsems int, permission int, semflg ...Flag) (*Semaphore, error) {
-	path, err := syscall.BytePtrFromString(key)
-	if err != nil {
-		return nil, err
-	}
-
+func NewSemaphore(key int, nsems int, permission int, semflg ...Flag) (*Semaphore, error) {
 	// OR flags
 	var flgs Flag
 	for i := 0; i < len(semflg); i++ {
@@ -81,13 +76,13 @@ func NewSemaphore(key string, nsems int, permission int, semflg ...Flag) (*Semap
 		flgs = flgs | 0600 // default permission
 	}
 
-	semid, _, errno := syscall.Syscall(syscall.SYS_SEMGET, uintptr(unsafe.Pointer(path)), uintptr(nsems), uintptr(flgs))
+	semid, _, errno := syscall.Syscall(syscall.SYS_SEMGET, uintptr(key), uintptr(nsems), uintptr(flgs))
 	if errno != 0 {
 		return nil, errors.New(errno.Error())
 	}
 
 	return &Semaphore{
-		key:    path,
+		key:    key,
 		nsems:  nsems, // number of semaphores in the set
 		semflg: flgs,
 		semid:  semid,
@@ -99,13 +94,8 @@ func NewSemaphore(key string, nsems int, permission int, semflg ...Flag) (*Semap
 // IPC_CREAT - If no semaphore set with the specified key exists, create a new set.
 // IPC_EXCL If IPC_CREAT was also specified, and a semaphore set with the specified key already exists, fail with the error EEXIST
 // return semaphore ID
-func (s *Semaphore) GetValue(key string) (int, error) {
-	path, err := syscall.BytePtrFromString(key)
-	if err != nil {
-		return -1, err
-	}
-
-	semid, _, errno := syscall.Syscall(syscall.SYS_SEMGET, uintptr(unsafe.Pointer(path)), uintptr(s.nsems), uintptr(s.semflg))
+func (s *Semaphore) GetValue(key int) (int, error) {
+	semid, _, errno := syscall.Syscall(syscall.SYS_SEMGET, uintptr(key), uintptr(s.nsems), uintptr(s.semflg))
 	if errno != 0 {
 		return -1, errors.New(errno.Error())
 	}
@@ -115,7 +105,7 @@ func (s *Semaphore) GetValue(key string) (int, error) {
 
 func (s *Semaphore) Wait() error {
 	sops := &sembuf{
-		sem_num: 0, // sem number is the semaphor number in the set. If you declared nsems 1, here should be 0
+		sem_num: 0,  // sem number is the semaphor number in the set. If you declared nsems 1, here should be 0
 		sem_op:  -1, // operation
 		sem_flg: 0,
 	}
