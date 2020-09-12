@@ -1,2 +1,2 @@
 # SystemV
-System V implementations of  shared memory and semaphores to syncronize.
+System V implementation of  shared memory and semaphores to syncronize.
