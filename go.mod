@@ -1,3 +1,3 @@
-module github.com/ValeryPiashchynski/rgoshm
+module github.com/ValeryPiashchynski/SystemV
 
 go 1.15
