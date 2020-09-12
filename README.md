@@ -29,7 +29,7 @@ if err != nil {
   
   Process2: Attach to the same semaphore. And `Wait` until Process1 released semaphore.
   ```go
-	s, err := NewSemaphore(0x12334, 1, 0666, true, IPC_CREAT)
+	s, err := NewSemaphore(0x12334, 1, 0666, false, IPC_CREAT)
 	if err != nil {
 		panic(err)
 	}
