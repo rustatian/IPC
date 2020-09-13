@@ -123,7 +123,7 @@ func BenchmarkAttachToShmSegment_READ(b *testing.B) {
 	}
 }
 
-// 225 microseconds - Write
+// 135 microseconds - Write
 func BenchmarkAttachToShmSegment_WRITE(b *testing.B) {
 	bigJsonLen := len(test.BigJson)
 	testBuf := make([]byte, 0, 0)
@@ -141,7 +141,8 @@ func BenchmarkAttachToShmSegment_WRITE(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		seg1.Write([]byte(test.BigJson))
+		byteRepr := []byte(test.BigJson)
+		seg1.Write(byteRepr)
 	}
 
 	err = seg1.Detach()
