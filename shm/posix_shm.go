@@ -69,7 +69,7 @@ func NewSharedMemorySegment(key int, size uint, permission int, flags ...Flag) (
 
 	// second arg could be uintptr(0) - auto
 	// third arg - size
-	// fourth - shmflg (flags) 140557580029952
+	// fourth - shmflg (flags)
 	id, _, errno := syscall.RawSyscall(syscall.SYS_SHMGET, uintptr(key), uintptr(size), uintptr(flgs))
 	if errno != 0 {
 		return nil, os.NewSyscallError("SYS_SHMGET", errno)
@@ -99,11 +99,55 @@ func NewSharedMemorySegment(key int, size uint, permission int, flags ...Flag) (
 	return segment, nil
 }
 
+// AttachToShmSegment used to attach to the existing shared memory segment by shared memory ID. Shared memory ID can be known or you find it
+// by typing the following command: ipcs -m --human.
+// If there is no such shm segment by shmId, the error will be shown.
+func AttachToShmSegment(shmId int, size uint, permission int) (*SharedMemorySegment, error) {
+	// OR (bitwise) flags
+	var flgs Flag
+	flgs = flgs | IPC_CREAT | IPC_EXCL
+
+	if permission != 0 {
+		flgs = flgs | Flag(permission)
+	} else {
+		flgs = flgs | 0600 // default permission
+	}
+
+	shmAddr, _, errno := syscall.RawSyscall(syscall.SYS_SHMAT, uintptr(shmId), uintptr(0), uintptr(flgs))
+	if errno != 0 {
+		return nil, errors.New(errno.Error())
+	}
+
+	segment := &SharedMemorySegment{
+		size:    size,
+		flags:   flgs,
+		address: uintptr(shmId),
+		data:    make([]byte, 0, 0),
+	}
+
+	// construct slice from memory segment
+	sh := (*reflect.SliceHeader)(unsafe.Pointer(&segment.data))
+	sh.Len = int(size)
+	sh.Cap = int(size)
+	sh.Data = shmAddr
+
+	segment.data = *(*[]byte)(unsafe.Pointer(sh))
+
+	return segment, nil
+}
+
 // write is not thread safe operation
 // should be protected via semaphore
 func (s *SharedMemorySegment) Write(data []byte) {
 	for i := 0; i < len(data); i++ {
 		s.data[i] = data[i]
+	}
+}
+
+// Clear by behaviour is similar to the std::memset(..., 0, ...)
+func (s *SharedMemorySegment) Clear() {
+	for i := 0; i < len(s.data); i++ {
+		s.data[i] = 0
 	}
 }
 
