@@ -108,7 +108,6 @@ func (s *Semaphore) GetValue(key int) (int, error) {
 	return int(semid), nil
 }
 
-// Actually, add will substract
 // semNum in most cases is 0, but if you initialized semaphore with nsems more then 1, semNum will be you target semaphore
 func (s *Semaphore) Add(semNum int) error {
 	sops := &sembuf{
