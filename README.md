@@ -3,6 +3,8 @@ System V implementation of  shared memory and semaphores to syncronize.
 
 [WIP]
 
+[![Total alerts](https://img.shields.io/lgtm/alerts/g/48d90782/SystemV.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/48d90782/SystemV/alerts/)
+
 #### How to use
 ##### Semaphores (interprocess):
 
