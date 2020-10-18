@@ -41,7 +41,8 @@ if err != nil {
 	}
   ```
 
-##Shared Memory (interprocess):
+## Shared Memory (interprocess):
+
 Initialize shared memory segment with a key, required size and flags:
 ```go
 seg1, err := NewSharedMemorySegment(0x1, 1024, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, IPC_CREAT)
