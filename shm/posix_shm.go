@@ -151,16 +151,18 @@ func (s *SharedMemorySegment) Clear() {
 	}
 }
 
-func (s *SharedMemorySegment) Read(length int, data []byte) error {
-	if len(data) < length {
+// Read data segment. Attention, the segment to read will be equal to data function arg len
+func (s *SharedMemorySegment) Read(data []byte) error {
+	if len(data) == 0 {
 		return errors.New("allocate []byte with provided length")
 	}
-	for i := 0; i < length; i++ {
+	for i := 0; i < len(data); i++ {
 		data[i] = s.data[i]
 	}
 	return nil
 }
 
+// Detach used to detach from memory segment
 func (s *SharedMemorySegment) Detach() error {
 	data := (*reflect.SliceHeader)(unsafe.Pointer(&s.data))
 	_, _, errno := syscall.Syscall(syscall.SYS_SHMDT, data.Data, 0, 0)

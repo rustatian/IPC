@@ -30,7 +30,7 @@ func TestNewSharedMemorySegment(t *testing.T) {
 		t.Fatal(err)
 	}
 	buf := make([]byte, len(testData), len(testData))
-	err = seg2.Read(len(testData), buf)
+	err = seg2.Read(buf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestAttachToShmSegment(t *testing.T) {
 	}
 
 	buf := make([]byte, len(testData), len(testData))
-	err = seg2.Read(len(testData), buf)
+	err = seg2.Read(buf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func BenchmarkAttachToShmSegment_READ(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err = seg2.Read(bigJsonLen, buf)
+		err = seg2.Read(buf)
 		if err != nil {
 			b.Fatal(err)
 		}
