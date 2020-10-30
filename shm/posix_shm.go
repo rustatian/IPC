@@ -1,3 +1,5 @@
+// +build linux
+
 package shm
 
 import (
@@ -85,7 +87,7 @@ func NewSharedMemorySegment(key int, size uint, permission int, flags ...Flag) (
 		size:    size,
 		flags:   flgs,
 		address: id,
-		data:    make([]byte, 0, 0),
+		data:    make([]byte, int(size), int(size)),
 	}
 
 	// construct slice from memory segment
