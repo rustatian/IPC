@@ -63,21 +63,6 @@ func CreateSharedMemory(key string, size uint) (SharedMemory, error) {
 	return segment, nil
 }
 
-//func AttachToSharedMemorySegment(key string, size uint) (SharedMemory, error) {
-//	name, err := syscall.UTF16PtrFromString(key)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	syscall.createfi
-//
-//	shm := &SharedMemorySegment{}
-//
-//	os.OpenFile(key, )
-//
-//	return shm, nil
-//}
-
 func (shm *SharedMemorySegment) Write(data []byte) {
 	for i := 0; i < len(data); i++ {
 		shm.data[i] = data[i]
