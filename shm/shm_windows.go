@@ -67,7 +67,7 @@ func (s *SharedMemorySegment) Write(data []byte) {
 	srcLen := len(data)
 	dstLen := len(s.data)
 
-	if srcLen < dstLen {
+	if srcLen > dstLen {
 		panic("can't write more than source len")
 	}
 

@@ -32,7 +32,8 @@ jobs:
 
       - name: Run golang tests
         run: |
-          go test . -race -v -coverprofile=ipc.txt -covermode=atomic
+          go test ./semaphore -race -v -coverprofile=semaphore.txt -covermode=atomic
+          go test ./shm -race -v -coverprofile=shm.txt -covermode=atomic
 
       - name: Run code coverage
         env:
@@ -41,7 +42,8 @@ jobs:
           if [[ "$CODECOV_TOKEN" != "" ]]; then
             curl https://codecov.io/bash -o codecov-bash
             chmod +x codecov-bash
-            ./codecov-bash -f ipc.txt
+            ./codecov-bash -f semaphore.txt
+            ./codecov-bash -f shm.txt
           fi
 
   golangci-check:

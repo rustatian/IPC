@@ -5,6 +5,8 @@ package semaphore
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSemaphore_Add(t *testing.T) {
@@ -20,12 +22,12 @@ func TestSemaphore_Add(t *testing.T) {
 	go func() {
 		s2, err2 := NewSemaphore(0x12334, 1, 0666, false, IPC_CREAT)
 		if err2 != nil {
-			t.Fatal(err2)
+			assert.Fail(t, "", err2)
 		}
 		time.Sleep(time.Second * 5)
 		err2 = s2.Done(0)
 		if err2 != nil {
-			t.Fatal(err2)
+			assert.Fail(t, "", err2)
 		}
 	}()
 

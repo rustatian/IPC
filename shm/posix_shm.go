@@ -60,13 +60,13 @@ func NewSharedMemorySegment(key int, size uint, permission int, flags ...Flag) (
 	// OR (bitwise) flags
 	var flgs Flag
 	for i := 0; i < len(flags); i++ {
-		flgs = flgs | flags[i]
+		flgs |= flags[i]
 	}
 
 	if permission != 0 {
-		flgs = flgs | Flag(permission)
+		flgs |= Flag(permission)
 	} else {
-		flgs = flgs | 0600 // default permission
+		flgs |= 0600 // default permission
 	}
 
 	// second arg could be uintptr(0) - auto
@@ -110,9 +110,9 @@ func AttachToShmSegment(shmId int, size uint, permission int) (*SharedMemorySegm
 	flgs = flgs | IPC_CREAT | IPC_EXCL
 
 	if permission != 0 {
-		flgs = flgs | Flag(permission)
+		flgs |= Flag(permission)
 	} else {
-		flgs = flgs | 0600 // default permission
+		flgs |= 0600 // default permission
 	}
 
 	shmAddr, _, errno := syscall.RawSyscall(syscall.SYS_SHMAT, uintptr(shmId), uintptr(0), uintptr(flgs))
@@ -144,7 +144,7 @@ func (s *SharedMemorySegment) Write(data []byte) {
 	srcLen := len(data)
 	dstLen := len(s.data)
 
-	if srcLen < dstLen {
+	if srcLen > dstLen {
 		panic("can't write more than source len")
 	}
 

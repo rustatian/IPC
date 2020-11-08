@@ -12,14 +12,14 @@ import (
    handling.  The definition is found in XPG2.  */
 
 /* Structure used for argument to `semop' to describe operations.  */
-//struct sembuf
+// struct sembuf
 //{
 //unsigned short int sem_num;	/* semaphore number */
 //short int sem_op;		/* semaphore operation */
 //short int sem_flg;		/* operation flag */
 //};
 
-//The sem_num field identifies the semaphore within the set upon which the opera-
+// The sem_num field identifies the semaphore within the set upon which the opera-
 //tion is to be performed. The sem_op field specifies the operation to be performed:
 //
 //If sem_op is greater than 0, the value of sem_op is added to the semaphore value.
@@ -27,12 +27,12 @@ import (
 //awakened and perform their operations. The calling process must have alter
 //(write) permission on the semaphore.
 
-//If sem_op equals 0, the value of the semaphore is checked to see whether it cur-
+// If sem_op equals 0, the value of the semaphore is checked to see whether it cur-
 //rently equals 0. If it does, the operation completes immediately; otherwise,
 //semop() blocks until the semaphore value becomes 0. The calling process must
 //have read permission on the semaphore.
 
-//If sem_op is less than 0, decrease the value of the semaphore by the amount
+// If sem_op is less than 0, decrease the value of the semaphore by the amount
 //specified in sem_op. If the current value of the semaphore is greater than or
 //equal to the absolute value of sem_op, the operation completes immediately.
 //Otherwise, semop() blocks until the semaphore value has been increased to a
@@ -66,13 +66,13 @@ func NewSemaphore(key int, nsems int, permission int, reset bool, semflg ...Flag
 	// OR flags
 	var flgs Flag
 	for i := 0; i < len(semflg); i++ {
-		flgs = flgs | semflg[i]
+		flgs |= semflg[i]
 	}
 
 	if permission != 0 {
-		flgs = flgs | Flag(permission)
+		flgs |= Flag(permission)
 	} else {
-		flgs = flgs | 0600 // default permission
+		flgs |= 0600 // default permission
 	}
 
 	semid, _, errno := syscall.Syscall(syscall.SYS_SEMGET, uintptr(key), uintptr(nsems), uintptr(flgs))
@@ -141,7 +141,7 @@ func (s *Semaphore) Done(semNum int) error {
 
 func (s *Semaphore) Wait() error {
 	sops := &sembuf{
-		sem_num: 0,  // sem number is the semaphor number in the set. If you declared nsems 1, here should be 0
+		sem_num: 0, // sem number is the semaphor number in the set. If you declared nsems 1, here should be 0
 		sem_op:  0, // operation
 		sem_flg: 0,
 	}
