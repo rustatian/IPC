@@ -1,6 +1,9 @@
 # Linux, Unix and Windows implementation of shared memory and semaphores [WIP]
 
-[![Total alerts](https://img.shields.io/lgtm/alerts/g/48d90782/SystemV.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/48d90782/SystemV/alerts/)
+<p align="center">
+	<a href="https://github.com/48d90782/IPC/actions"><img src="https://github.com/48d90782/IPC/workflows/CI/badge.svg" alt=""></a>
+	<a href="https://lgtm.com/projects/g/48d90782/IPC/alerts/"><img src="https://img.shields.io/lgtm/alerts/g/48d90782/IPC.svg?logo=lgtm&logoWidth=18"></a>
+</p>
 
 # How to use
 ## Semaphores (interprocess):
