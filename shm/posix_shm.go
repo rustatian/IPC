@@ -141,9 +141,19 @@ func AttachToShmSegment(shmId int, size uint, permission int) (*SharedMemorySegm
 // write is not thread safe operation
 // should be protected via semaphore
 func (s *SharedMemorySegment) Write(data []byte) {
-	for i := 0; i < len(data); i++ {
-		s.data[i] = data[i]
+	srcLen := len(data)
+	dstLen := len(s.data)
+
+	if srcLen < dstLen {
+		panic("can't write more than source len")
 	}
+
+	s.writeBuffer(data, s.data)
+}
+
+// src -> dst
+func (s *SharedMemorySegment) writeBuffer(src []byte, dst []byte) {
+	copy(dst, src)
 }
 
 // Clear by behaviour is similar to the std::memset(..., 0, ...)

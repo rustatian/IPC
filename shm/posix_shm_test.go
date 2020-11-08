@@ -126,12 +126,14 @@ func BenchmarkAttachToShmSegment_READ(b *testing.B) {
 }
 
 // 135 microseconds - Write
+// 50880	     23679 ns/op	  147456 B/op	       1 allocs/op
+// 10639	    152172 ns/op	  147456 B/op	       1 allocs/op
 func BenchmarkAttachToShmSegment_WRITE(b *testing.B) {
 	bigJsonLen := len(test.BigJson)
 	testBuf := make([]byte, 0, 0)
 	testBuf = append(testBuf, []byte(testData)...)
 	// Just to be sure, that shm segment exists
-	seg1, err := NewSharedMemorySegment(0x10, uint(bigJsonLen), S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, IPC_CREAT)
+	seg1, err := NewSharedMemorySegment(0x20, uint(bigJsonLen), S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, IPC_CREAT)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -142,9 +144,10 @@ func BenchmarkAttachToShmSegment_WRITE(b *testing.B) {
 	// write data to the shared memory
 	b.ReportAllocs()
 	b.ResetTimer()
+	byteRepr := []byte(test.BigJson)
 	for i := 0; i < b.N; i++ {
-		byteRepr := []byte(test.BigJson)
 		seg1.Write(byteRepr)
+		seg1.Clear()
 	}
 
 	err = seg1.Detach()

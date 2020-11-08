@@ -63,10 +63,20 @@ func CreateSharedMemory(key string, size uint) (SharedMemory, error) {
 	return segment, nil
 }
 
-func (shm *SharedMemorySegment) Write(data []byte) {
-	for i := 0; i < len(data); i++ {
-		shm.data[i] = data[i]
+func (s *SharedMemorySegment) Write(data []byte) {
+	srcLen := len(data)
+	dstLen := len(s.data)
+
+	if srcLen < dstLen {
+		panic("can't write more than source len")
 	}
+
+	s.writeBuffer(data, s.data)
+}
+
+// src -> dst
+func (s *SharedMemorySegment) writeBuffer(src []byte, dst []byte) {
+	copy(dst, src)
 }
 
 // Clear by behaviour is similar to the std::memset(..., 0, ...)
