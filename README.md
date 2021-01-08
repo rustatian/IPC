@@ -62,7 +62,7 @@ if err != nil {
 }
 ```
 
-From the anouther process, initialize shared memory segment with the same key, size, but with ReadOnly flag:
+From the another process, initialize shared memory segment with the same key, size, but with ReadOnly flag:
 
 ```go
 seg2, err := NewSharedMemorySegment(0x1, 1024, 0, SHM_RDONLY)
