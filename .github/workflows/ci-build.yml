@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: [ 1.14, 1.15 ]
+        go: [ 1.14, 1.15, 1.16, 1.17.6 ]
         os: [ ubuntu-latest ]
     env:
       GO111MODULE: on
@@ -46,13 +46,16 @@ jobs:
             ./codecov-bash -f shm.txt
           fi
 
-  golangci-check:
-    name: runner / golangci-lint
+  golangci-lint:
+    name: Golang-CI (lint)
     runs-on: ubuntu-latest
     steps:
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v1
-      - name: golangci-lint
-        uses: reviewdog/action-golangci-lint@v1
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v2 # Action page: <https://github.com/golangci/golangci-lint-action>
         with:
-          github_token: ${{ secrets.github_token }}
+          version: v1.43 # without patch version
+          only-new-issues: false # show only new issues if it's a pull request
+          args: --timeout=10m
