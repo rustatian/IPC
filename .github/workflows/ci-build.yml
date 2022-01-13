@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: [ 1.14, 1.15, 1.16, 1.17.6 ]
+        go: [ 1.17.6 ]
         os: [ ubuntu-latest ]
     env:
       GO111MODULE: on
