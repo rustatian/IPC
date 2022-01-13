@@ -1,4 +1,4 @@
-# Linux, Unix and Windows implementation of shared memory and semaphores [WIP]
+# Linux and Windows implementation of shared memory and semaphores
 
 <p align="center">
 	<a href="https://github.com/48d90782/IPC/actions"><img src="https://github.com/48d90782/IPC/workflows/CI/badge.svg" alt=""></a>
