@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package semaphore
@@ -13,31 +14,31 @@ import (
 
 /* Structure used for argument to `semop' to describe operations.  */
 // struct sembuf
-//{
-//unsigned short int sem_num;	/* semaphore number */
-//short int sem_op;		/* semaphore operation */
-//short int sem_flg;		/* operation flag */
-//};
+// {
+// unsigned short int sem_num;	/* semaphore number */
+// short int sem_op;		/* semaphore operation */
+// short int sem_flg;		/* operation flag */
+// };
 
-// The sem_num field identifies the semaphore within the set upon which the opera-
-//tion is to be performed. The sem_op field specifies the operation to be performed:
+// The sem_num field identifies the semaphore within the set upon which the operation is to be performed.
+// The sem_op field specifies the operation to be performed:
 //
-//If sem_op is greater than 0, the value of sem_op is added to the semaphore value.
-//As a result, other processes waiting to decrease the semaphore value may be
-//awakened and perform their operations. The calling process must have alter
-//(write) permission on the semaphore.
+// If sem_op is greater than 0, the value of sem_op is added to the semaphore value.
+// As a result, other processes waiting to decrease the semaphore value may be
+// awakened and perform their operations. The calling process must have alter
+// (write) permission on the semaphore.
 
-// If sem_op equals 0, the value of the semaphore is checked to see whether it cur-
-//rently equals 0. If it does, the operation completes immediately; otherwise,
-//semop() blocks until the semaphore value becomes 0. The calling process must
-//have read permission on the semaphore.
+// If sem_op equals 0, the value of the semaphore is checked to see whether it currently equals 0.
+// If it does, the operation completes immediately; otherwise,
+// semop() blocks until the semaphore value becomes 0. The calling process must
+// have read permission on the semaphore.
 
 // If sem_op is less than 0, decrease the value of the semaphore by the amount
-//specified in sem_op. If the current value of the semaphore is greater than or
-//equal to the absolute value of sem_op, the operation completes immediately.
-//Otherwise, semop() blocks until the semaphore value has been increased to a
-//level that permits the operation to be performed without resulting in a nega-
-//tive value. The calling process must have alter permission on the semaphore.
+// specified in sem_op. If the current value of the semaphore is greater than or
+// equal to the absolute value of sem_op, the operation completes immediately.
+// Otherwise, semop() blocks until the semaphore value has been increased to a
+// level that permits the operation to be performed without resulting in a negative value.
+// The calling process must have alter permission on the semaphore.
 
 type Flag int
 
@@ -98,8 +99,8 @@ func NewSemaphore(key int, nsems int, permission int, reset bool, semflg ...Flag
 
 // int semget(key_t key , int nsems , int semflg );
 // flags which can be used:
-// IPC_CREAT - If no semaphore set with the specified key exists, create a new set.
-// IPC_EXCL If IPC_CREAT was also specified, and a semaphore set with the specified key already exists, fail with the error EEXIST
+// IpcCreat - If no semaphore set with the specified key exists, create a new set.
+// IPC_EXCL If IpcCreat was also specified, and a semaphore set with the specified key already exists, fail with the error EEXIST
 // return semaphore ID
 func (s *Semaphore) GetValue(key int) (int, error) {
 	semid, _, errno := syscall.Syscall(syscall.SYS_SEMGET, uintptr(key), uintptr(s.nsems), uintptr(s.semflg))

@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package shm
@@ -50,11 +51,12 @@ type SharedMemorySegment struct {
 	data    []byte
 }
 
-/* The args are:
+/*
+NewSharedMemorySegment the args are:
 key - int, used as uniques identifier for the shared memory segment
 size - uint, size in bytes to allocate
 permission - int, if passed zero, 0600 will be used by default
-flags - IPC_CREAT, IPC_EXCL, IPC_NOWAIT. More info can be found here https://github.com/torvalds/linux/blob/master/include/uapi/linux/ipc.h
+flags - IpcCreat, IpcExcl, IPC_NOWAIT. More info can be found here https://github.com/torvalds/linux/blob/master/include/uapi/linux/ipc.h
 */
 func NewSharedMemorySegment(key int, size uint, permission int, flags ...Flag) (*SharedMemorySegment, error) {
 	// OR (bitwise) flags
@@ -87,7 +89,7 @@ func NewSharedMemorySegment(key int, size uint, permission int, flags ...Flag) (
 		size:    size,
 		flags:   flgs,
 		address: id,
-		data:    make([]byte, int(size), int(size)),
+		data:    make([]byte, int(size)),
 	}
 
 	// construct slice from memory segment
@@ -104,7 +106,7 @@ func NewSharedMemorySegment(key int, size uint, permission int, flags ...Flag) (
 // AttachToShmSegment used to attach to the existing shared memory segment by shared memory ID. Shared memory ID can be known or you find it
 // by typing the following command: ipcs -m --human.
 // If there is no such shm segment by shmId, the error will be shown.
-func AttachToShmSegment(shmId int, size uint, permission int) (*SharedMemorySegment, error) {
+func AttachToShmSegment(shmID int, size uint, permission int) (*SharedMemorySegment, error) {
 	// OR (bitwise) flags
 	var flgs Flag
 	flgs = flgs | IPC_CREAT | IPC_EXCL
@@ -115,7 +117,7 @@ func AttachToShmSegment(shmId int, size uint, permission int) (*SharedMemorySegm
 		flgs |= 0600 // default permission
 	}
 
-	shmAddr, _, errno := syscall.RawSyscall(syscall.SYS_SHMAT, uintptr(shmId), uintptr(0), uintptr(flgs))
+	shmAddr, _, errno := syscall.RawSyscall(syscall.SYS_SHMAT, uintptr(shmID), uintptr(0), uintptr(flgs))
 	if errno != 0 {
 		return nil, errors.New(errno.Error())
 	}
@@ -123,8 +125,8 @@ func AttachToShmSegment(shmId int, size uint, permission int) (*SharedMemorySegm
 	segment := &SharedMemorySegment{
 		size:    size,
 		flags:   flgs,
-		address: uintptr(shmId),
-		data:    make([]byte, 0, 0),
+		address: uintptr(shmID),
+		data:    make([]byte, 0),
 	}
 
 	// construct slice from memory segment
@@ -156,7 +158,7 @@ func (s *SharedMemorySegment) writeBuffer(src []byte, dst []byte) {
 	copy(dst, src)
 }
 
-// Clear by behaviour is similar to the std::memset(..., 0, ...)
+// Clear by behavior is similar to the std::memset(..., 0, ...)
 func (s *SharedMemorySegment) Clear() {
 	for i := 0; i < len(s.data); i++ {
 		s.data[i] = 0
