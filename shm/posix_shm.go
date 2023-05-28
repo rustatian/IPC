@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 type Flag int
@@ -49,6 +51,28 @@ type SharedMemorySegment struct {
 	flags   Flag
 	address uintptr
 	data    []byte
+}
+
+func NewSharedMemoryPosix(name string, size uint, permission int, flags ...Flag) (*SharedMemorySegment, error) {
+
+	// OR (bitwise) flags
+	var flgs Flag
+	for i := 0; i < len(flags); i++ {
+		flgs |= flags[i]
+	}
+
+	if permission != 0 {
+		flgs |= Flag(permission)
+	} else {
+		flgs |= 0600 // default permission
+	}
+
+	fd, err := unix.Open(name, int(flgs), uint32(permission))
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, nil
 }
 
 /*
