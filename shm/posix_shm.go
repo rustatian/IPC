@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"reflect"
 	"syscall"
 	"unsafe"
 
@@ -83,7 +82,7 @@ func NewSharedMemoryPosix(name string, size uint, permission int, flags ...Flag)
 	}
 	fmt.Println(buff)
 
-	buffW := make([]byte, 13, 13)
+	buffW := make([]byte, 13)
 	buffW[0] = 1
 	buffW[1] = 2
 	buffW[2] = 3
@@ -162,12 +161,12 @@ func NewSharedMemorySegment(key int, size uint, permission int, flags ...Flag) (
 	}
 
 	// construct slice from memory segment
-	sh := (*reflect.SliceHeader)(unsafe.Pointer(&segment.data))
-	sh.Len = int(size)
-	sh.Cap = int(size)
-	sh.Data = shmAddr
+	// sh := (*reflect.SliceHeader)(unsafe.Pointer(&segment.data))
+	// sh.Len = int(size)
+	// sh.Cap = int(size)
+	// sh.Data = shmAddr
 
-	segment.data = *(*[]byte)(unsafe.Pointer(sh))
+	segment.data = unsafe.Slice((*byte)(unsafe.Pointer(shmAddr)), int(size))
 
 	return segment, nil
 }
@@ -199,12 +198,12 @@ func AttachToShmSegment(shmID int, size uint, permission int) (*SharedMemorySegm
 	}
 
 	// construct slice from memory segment
-	sh := (*reflect.SliceHeader)(unsafe.Pointer(&segment.data))
-	sh.Len = int(size)
-	sh.Cap = int(size)
-	sh.Data = shmAddr
+	// sh := (*reflect.SliceHeader)(unsafe.Pointer(&segment.data))
+	// sh.Len = int(size)
+	// sh.Cap = int(size)
+	// sh.Data = shmAddr
 
-	segment.data = *(*[]byte)(unsafe.Pointer(sh))
+	segment.data = unsafe.Slice((*byte)(unsafe.Pointer(shmAddr)), int(size))
 
 	return segment, nil
 }
@@ -247,8 +246,8 @@ func (s *SharedMemorySegment) Read(data []byte) error {
 
 // Detach used to detach from memory segment
 func (s *SharedMemorySegment) Detach() error {
-	data := (*reflect.SliceHeader)(unsafe.Pointer(&s.data))
-	_, _, errno := syscall.Syscall(syscall.SYS_SHMDT, data.Data, 0, 0)
+	data := unsafe.SliceData(s.data)
+	_, _, errno := syscall.Syscall(syscall.SYS_SHMDT, uintptr(unsafe.Pointer(data)), 0, 0)
 	if errno != 0 {
 		return errors.New(errno.Error())
 	}
