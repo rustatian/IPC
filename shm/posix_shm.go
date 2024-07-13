@@ -1,14 +1,14 @@
-//go:build linux
-// +build linux
-
 package shm
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 type Flag int
@@ -49,6 +49,75 @@ type SharedMemorySegment struct {
 	flags   Flag
 	address uintptr
 	data    []byte
+}
+
+func NewSharedMemoryPosix(name string, size uint, permission int, flags ...Flag) (*SharedMemorySegment, error) {
+	// OR (bitwise) flags
+	var flgs Flag
+	name = fmt.Sprintf("/dev/shm/%s", name)
+	for i := 0; i < len(flags); i++ {
+		flgs |= flags[i]
+	}
+
+	if permission != 0 {
+		flgs |= Flag(permission)
+	} else {
+		flgs |= 0600 // default permission
+	}
+
+	fd, err := unix.Open(name, int(flgs), uint32(permission))
+	if err != nil {
+		return nil, err
+	}
+
+	err = unix.Ftruncate(fd, int64(size))
+	if err != nil {
+		return nil, err
+	}
+
+	file := os.NewFile(uintptr(fd), name)
+	buff := make([]byte, 13)
+	_, err = file.Read(buff)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(buff)
+
+	buffW := make([]byte, 13, 13)
+	buffW[0] = 1
+	buffW[1] = 2
+	buffW[2] = 3
+	_, err = file.WriteAt(buffW, 0)
+	if err != nil {
+		return nil, err
+	}
+	err = file.Sync()
+	if err != nil {
+		return nil, err
+	}
+
+	err = file.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	// data, err := unix.Mmap(fd, 0, int(size), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+
+	// file := os.NewFile(uintptr(fd), "some_file")
+	// _, err = file.Write([]byte("foo"))
+	// if err != nil {
+	// 	return nil, err
+	// }
+	//
+	// data[1] = 1
+	// fmt.Println(data)
+	//
+	// err = unix.Munmap(data)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	return nil, nil
 }
 
 /*

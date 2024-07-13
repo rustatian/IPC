@@ -7,9 +7,19 @@ import (
 
 	"github.com/rustatian/ipc/shm/test"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 )
 
 const testData = "hello my dear friend"
+
+func TestNewSharedMemorySegmentPOSIX(t *testing.T) {
+	shms, err := NewSharedMemoryPosix("foo", 1024 /*unix.S_IRUSR|unix.S_IWUSR*/, unix.O_CREAT, unix.O_RDWR)
+	if err != nil {
+		panic(err)
+	}
+
+	_ = shms
+}
 
 func TestNewSharedMemorySegment(t *testing.T) {
 	testBuf := make([]byte, 0)
