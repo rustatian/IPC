@@ -2,7 +2,6 @@
 
 <p align="center">
 	<a href="https://github.com/rustatian/IPC/actions"><img src="https://github.com/rustatian/IPC/workflows/CI/badge.svg" alt=""></a>
-	<a href="https://lgtm.com/projects/g/rustatian/IPC/alerts/"><img src="https://img.shields.io/lgtm/alerts/g/rustatian/IPC.svg?logo=lgtm&logoWidth=18"></a>
 </p>
 
 # How to use
