@@ -1,12 +1,9 @@
 module github.com/rustatian/ipc
 
 go 1.23
-
-toolchain go1.23.0
-
 require (
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/sys v0.30.0
+	golang.org/x/sys v0.31.0
 )
 
 require (
