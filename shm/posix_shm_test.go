@@ -26,7 +26,7 @@ func TestNewSharedMemorySegment(t *testing.T) {
 	testBuf := make([]byte, 0)
 	testBuf = append(testBuf, []byte(testData)...)
 
-	seg1, err := NewSharedMemorySegment(0x1, 1024, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, IPC_CREAT)
+	seg1, err := NewSharedMemorySegment(0x1, 1024, SIrusr|SIwusr|SIrgrp|SIwgrp, IpcCreat)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestNewSharedMemorySegment(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	seg2, err := NewSharedMemorySegment(0x1, 1024, 0, SHM_RDONLY)
+	seg2, err := NewSharedMemorySegment(0x1, 1024, 0, Rdonly)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestAttachToShmSegment(t *testing.T) {
 	testBuf := make([]byte, 0)
 	testBuf = append(testBuf, []byte(testData)...)
 	// Just to be sure, that shm segment exists
-	seg1, err := NewSharedMemorySegment(0x1, 1024, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, IPC_CREAT)
+	seg1, err := NewSharedMemorySegment(0x1, 1024, SIrusr|SIwusr|SIrgrp|SIwgrp, IpcCreat)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func BenchmarkAttachToShmSegment_READ(b *testing.B) {
 	testBuf := make([]byte, 0, len(testData))
 	testBuf = append(testBuf, testData...)
 	// Just to be sure, that shm segment exists
-	seg1, err := NewSharedMemorySegment(0x10, uint(bigJSONLen), S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, IPC_CREAT)
+	seg1, err := NewSharedMemorySegment(0x10, uint(bigJSONLen), SIrusr|SIwusr|SIrgrp|SIwgrp, IpcCreat) //nolint:gosec
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func BenchmarkAttachToShmSegment_READ(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	seg2, err := AttachToShmSegment(int(seg1.address), uint(bigJSONLen), 0666)
+	seg2, err := AttachToShmSegment(int(seg1.address), uint(bigJSONLen), 0666) //nolint:gosec
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -144,7 +144,7 @@ func BenchmarkAttachToShmSegment_WRITE(b *testing.B) {
 	testBuf := make([]byte, 0, len(testData))
 	testBuf = append(testBuf, testData...)
 	// Just to be sure, that shm segment exists
-	seg1, err := NewSharedMemorySegment(0x20, uint(bigJSONLen), S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, IPC_CREAT)
+	seg1, err := NewSharedMemorySegment(0x20, uint(bigJSONLen), SIrusr|SIwusr|SIrgrp|SIwgrp, IpcCreat) //nolint:gosec
 	if err != nil {
 		b.Fatal(err)
 	}

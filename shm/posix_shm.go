@@ -14,32 +14,32 @@ type Flag int
 
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/ipc.h
 const (
-	/* resource get request flags */
-	IPC_CREAT  Flag = 00001000 /* create if key is nonexistent */
-	IPC_EXCL   Flag = 00002000 /* fail if key exists */
-	IPC_NOWAIT Flag = 00004000 /* return error on wait */
+	// IpcCreat resource get request flags */
+	IpcCreat Flag = 00001000 /* create if key is nonexistent */
+	IpcExcl  Flag = 00002000 /* fail if key exists */
+	// IPC_NOWAIT Flag = 00004000 /* return error on wait */
 
-	/* Permission flag for shmget.  */
-	SHM_R Flag = 0400 /* or S_IRUGO from <linux/stat.h> */
-	SHM_W Flag = 0200 /* or S_IWUGO from <linux/stat.h> */
+	// SHM_R Permission flag for shmget.  */
+	// SHM_R Flag = 0400 /* or S_IRUGO from <linux/stat.h> */
+	// SHM_W Flag = 0200 /* or S_IWUGO from <linux/stat.h> */
 
-	/* Flags for `shmat'.  */
-	SHM_RDONLY Flag = 010000 /* attach read-only else read-write */
-	SHM_RND    Flag = 020000 /* round attach address to SHMLBA */
+	// Rdonly Flags for 'shmat'.  */
+	Rdonly Flag = 010000 /* attach read-only else read-write */
+	// SHM_RND   Flag = 020000 /* round attach address to SHMLBA */
 
-	/* Commands for `shmctl'.  */
-	SHM_REMAP Flag = 040000  /* take-over region on attach */
-	SHM_EXEC  Flag = 0100000 /* execution access */
+	/* Commands for 'shmctl'.  */
+	// SHM_REMAP Flag = 040000  /* take-over region on attach */
+	// SHM_EXEC  Flag = 0100000 /* execution access */
 
-	SHM_LOCK   Flag = 11 /* lock segment (root only) */
-	SHM_UNLOCK Flag = 12 /* unlock segment (root only) */
+	// SHM_LOCK   Flag = 11 /* lock segment (root only) */
+	// SHM_UNLOCK Flag = 12 /* unlock segment (root only) */
 )
 
 const (
-	S_IRUSR = 0400         /* Read by owner.  */
-	S_IWUSR = 0200         /* Write by owner.  */
-	S_IRGRP = S_IRUSR >> 3 /* Read by group.  */
-	S_IWGRP = S_IWUSR >> 3 /* Write by group.  */
+	SIrusr = 0400        /* Read by owner.  */
+	SIwusr = 0200        /* Write by owner.  */
+	SIrgrp = SIrusr >> 3 /* Read by group.  */
+	SIwgrp = SIwusr >> 3 /* Write by group.  */
 )
 
 type SharedMemorySegment struct {
@@ -69,7 +69,7 @@ func NewSharedMemoryPosix(name string, size uint, permission int, flags ...Flag)
 		return nil, err
 	}
 
-	err = unix.Ftruncate(fd, int64(size))
+	err = unix.Ftruncate(fd, int64(size)) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func NewSharedMemorySegment(key int, size uint, permission int, flags ...Flag) (
 		size:    size,
 		flags:   flgs,
 		address: id,
-		data:    make([]byte, int(size)),
+		data:    make([]byte, int(size)), //nolint:gosec
 	}
 
 	// construct slice from memory segment
@@ -165,9 +165,7 @@ func NewSharedMemorySegment(key int, size uint, permission int, flags ...Flag) (
 	// sh.Len = int(size)
 	// sh.Cap = int(size)
 	// sh.Data = shmAddr
-
-	segment.data = unsafe.Slice((*byte)(unsafe.Pointer(shmAddr)), int(size))
-
+	segment.data = unsafe.Slice((*byte)(unsafe.Pointer(shmAddr)), int(size)) //nolint:gosec
 	return segment, nil
 }
 
@@ -177,7 +175,7 @@ func NewSharedMemorySegment(key int, size uint, permission int, flags ...Flag) (
 func AttachToShmSegment(shmID int, size uint, permission int) (*SharedMemorySegment, error) {
 	// OR (bitwise) flags
 	var flgs Flag
-	flgs = flgs | IPC_CREAT | IPC_EXCL
+	flgs = flgs | IpcCreat | IpcExcl
 
 	if permission != 0 {
 		flgs |= Flag(permission)
@@ -203,7 +201,7 @@ func AttachToShmSegment(shmID int, size uint, permission int) (*SharedMemorySegm
 	// sh.Cap = int(size)
 	// sh.Data = shmAddr
 
-	segment.data = unsafe.Slice((*byte)(unsafe.Pointer(shmAddr)), int(size))
+	segment.data = unsafe.Slice((*byte)(unsafe.Pointer(shmAddr)), int(size)) //nolint:gosec
 
 	return segment, nil
 }

@@ -50,15 +50,15 @@ type Semaphore struct {
 }
 
 type sembuf struct {
-	sem_num uint16 // according to the standard, unsigned short should be at least 2 bytes
-	sem_op  int16  // /* Operation to be performed */
-	sem_flg int16  // /* Operation flags (IPC_NOWAIT and SEM_UNDO) */
+	semNum uint16 // according to the standard, unsigned short should be at least 2 bytes
+	semOp  int16  // /* Operation to be performed */
+	semFlg int16  // /* Operation flags (IPC_NOWAIT and SEM_UNDO) */
 }
 
 type SystemVSemaphore interface {
 	GetValue(key int) (int, error)
-	Add(semNum int) error
-	Done(semNum int) error
+	Add(semNum uint16) error
+	Done(semNum uint16) error
 	Wait() error
 }
 
@@ -96,7 +96,7 @@ func NewSemaphore(key int, nsems int, permission int, reset bool, semflg ...Flag
 	}, nil
 }
 
-// int semget(key_t key , int nsems , int semflg );
+// GetValue int semget(key_t key , int nsems , int semflg );
 // flags which can be used:
 // IpcCreat - If no semaphore set with the specified key exists, create a new set.
 // IPC_EXCL If IpcCreat was also specified, and a semaphore set with the specified key already exists, fail with the error EEXIST
@@ -110,12 +110,12 @@ func (s *Semaphore) GetValue(key int) (int, error) {
 	return int(semid), nil
 }
 
-// semNum in most cases is 0, but if you initialized semaphore with nsems more then 1, semNum will be you target semaphore
-func (s *Semaphore) Add(semNum int) error {
+// Add - semNum in most cases is 0, but if you initialized semaphore with nsems more then 1, semNum will be you target semaphore
+func (s *Semaphore) Add(semNum uint16) error {
 	sops := &sembuf{
-		sem_num: uint16(semNum),
-		sem_op:  1,
-		sem_flg: 0,
+		semNum: semNum,
+		semOp:  1,
+		semFlg: 0,
 	}
 	// the last arg is a len of sops
 	_, _, errno := syscall.Syscall(syscall.SYS_SEMOP, s.semid, uintptr(unsafe.Pointer(sops)), uintptr(1))
@@ -125,11 +125,11 @@ func (s *Semaphore) Add(semNum int) error {
 	return nil
 }
 
-func (s *Semaphore) Done(semNum int) error {
+func (s *Semaphore) Done(semNum uint16) error {
 	sops := &sembuf{
-		sem_num: uint16(semNum),
-		sem_op:  -1,
-		sem_flg: 0,
+		semNum: semNum,
+		semOp:  -1,
+		semFlg: 0,
 	}
 	// the last arg is a len of sops
 	_, _, errno := syscall.Syscall(syscall.SYS_SEMOP, s.semid, uintptr(unsafe.Pointer(sops)), uintptr(1))
@@ -141,9 +141,9 @@ func (s *Semaphore) Done(semNum int) error {
 
 func (s *Semaphore) Wait() error {
 	sops := &sembuf{
-		sem_num: 0, // sem number is the semaphor number in the set. If you declared nsems 1, here should be 0
-		sem_op:  0, // operation
-		sem_flg: 0,
+		semNum: 0, // sem number is the semaphor number in the set. If you declared nsems 1, here should be 0
+		semOp:  0, // operation
+		semFlg: 0,
 	}
 
 	// int semop(int semid , struct sembuf * sops , unsigned int nsops );
