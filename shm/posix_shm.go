@@ -80,7 +80,7 @@ func NewSharedMemoryPosix(name string, size uint, permission int, flags ...Flag)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(buff)
+	fmt.Println(string(buff))
 
 	buffW := make([]byte, 13)
 	buffW[0] = 1
