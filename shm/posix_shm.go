@@ -54,7 +54,7 @@ func NewSharedMemoryPosix(name string, size uint, permission int, flags ...Flag)
 	// OR (bitwise) flags
 	var flgs Flag
 	name = fmt.Sprintf("/dev/shm/%s", name)
-	for i := 0; i < len(flags); i++ {
+	for i := range flags {
 		flgs |= flags[i]
 	}
 
@@ -129,7 +129,7 @@ flags - IpcCreat, IpcExcl, IPC_NOWAIT. More info can be found here https://githu
 func NewSharedMemorySegment(key int, size uint, permission int, flags ...Flag) (*SharedMemorySegment, error) {
 	// OR (bitwise) flags
 	var flgs Flag
-	for i := 0; i < len(flags); i++ {
+	for i := range flags {
 		flgs |= flags[i]
 	}
 
@@ -236,7 +236,7 @@ func (s *SharedMemorySegment) Read(data []byte) error {
 	if len(data) == 0 {
 		return errors.New("allocate []byte with provided length")
 	}
-	for i := 0; i < len(data); i++ {
+	for i := range data {
 		data[i] = s.data[i]
 	}
 	return nil

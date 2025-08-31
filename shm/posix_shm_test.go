@@ -122,8 +122,8 @@ func BenchmarkAttachToShmSegment_READ(b *testing.B) {
 
 	buf := make([]byte, bigJSONLen)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		err = seg2.Read(buf)
 		if err != nil {
 			b.Fatal(err)
@@ -154,9 +154,8 @@ func BenchmarkAttachToShmSegment_WRITE(b *testing.B) {
 
 	// write data to the shared memory
 	b.ReportAllocs()
-	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		seg1.Write(testBuf)
 		seg1.Clear()
 	}
