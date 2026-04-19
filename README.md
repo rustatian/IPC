@@ -1,86 +1,119 @@
-# Linux and Windows implementation of shared memory and semaphores
+# Unix shared memory and semaphores
 
 <p align="center">
 	<a href="https://github.com/rustatian/IPC/actions"><img src="https://github.com/rustatian/IPC/workflows/CI/badge.svg" alt=""></a>
 </p>
 
-# How to use
-## Semaphores (interprocess):
+A Go library for Unix interprocess communication — SysV/POSIX shared
+memory segments and cross-platform named counting semaphores. Implemented
+entirely via raw system calls; **no cgo required**.
 
-Process1: Initialize a semaphore, and Add to semaphores set (semaphore 0 in example) value 1. And start doing some interprocess work (write to the shared memory for example).
+## Platform support
+
+| Package      | Platforms        | Backing syscalls |
+|--------------|------------------|------------------|
+| `shm`        | Linux, darwin    | SysV shm syscalls via `golang.org/x/sys/unix` |
+| `semaphore`  | Linux, darwin    | SysV on Linux, POSIX `sem_*` on darwin — unified Go API |
+
+The `semaphore` package presents a single name-based API on every
+platform, dispatching to the native syscall family that works best there:
+
+- **Linux** — SysV IPC (`semget`/`semop`/`semctl`). The user-facing name
+  is FNV-hashed to an integer `semget` key.
+- **Darwin** — POSIX named semaphores (`sem_open`/`sem_post`/`sem_wait`
+  and friends). These are real kernel syscalls on darwin (numbers
+  268–274), unlike on Linux where `sem_open` is a libc composite of
+  `open`+`mmap`+`futex`.
+
+## Semaphores (interprocess)
+
+Process 1 — create a named semaphore with initial value 0 and wait for a
+signal:
+
 ```go
-s, err := NewSemaphore(0x12334, 1, 0666, true, IPC_CREAT)
+s, err := semaphore.NewSemaphore("/mylock", 0666, 0)
 if err != nil {
-	panic(err)
+    panic(err)
 }
-err = s.Add(0)
-if err != nil {
-	panic(err)
-}
-  ```
-  
-  After work will be done, just unlock semaphore:
-  
-  ```go
-  err = s.Done(0) // 0 here is the 1-st semaphore in the set identified by semaphore ID.
-	if err != nil {
-		panic(err)
-	}
-  ```
-  
-  Process2: Attach to the same semaphore. And `Wait` until Process1 released semaphore.
-  ```go
-	s, err := NewSemaphore(0x12334, 1, 0666, false, IPC_CREAT)
-	if err != nil {
-		panic(err)
-	}
-	err = s.Wait()
-	if err != nil {
-		panic(err)
-	}
-  ```
+defer s.Close()
+defer s.Unlink()
 
-## Shared Memory (interprocess):
-
-Initialize shared memory segment with a key, required size and flags:
-```go
-seg1, err := NewSharedMemorySegment(0x1, 1024, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, IPC_CREAT)
-if err != nil {
-	t.Fatal(err)
-}
-```  
-
-Write the specified amount of data and detach from the segment:
-```go
-// write data to the shared memory
-// testData is less or equal to 1024 specified in prev declaration 
-seg1.Write([]byte(testData))
-err = seg1.Detach()
-if err != nil {
-	t.Fatal(err)
+if err := s.Wait(); err != nil {
+    panic(err)
 }
 ```
 
-From the another process, initialize shared memory segment with the same key, size, but with ReadOnly flag:
+Process 2 — attach to the same semaphore and release the waiter:
 
 ```go
-seg2, err := NewSharedMemorySegment(0x1, 1024, 0, SHM_RDONLY)
+s, err := semaphore.OpenSemaphore("/mylock")
 if err != nil {
-	t.Fatal(err)
+    panic(err)
+}
+defer s.Close()
+
+if err := s.Post(); err != nil {
+    panic(err)
 }
 ```
 
-Read specified amount of data and detach from the segment:
+Other operations:
+
+- `OpenOrCreateSemaphore(name, perm, initial)` — idempotent open/create.
+- `TryWait()` — non-blocking decrement; returns `syscall.EAGAIN` when the
+  counter is zero.
+
+## Shared Memory (interprocess)
+
+Create a shared memory segment with a key, size, and creation flags:
 
 ```go
-buf := make([]byte, len(testData), len(testData))
-err = seg2.Read(buf)
+seg1, err := shm.NewSharedMemorySegment(0x1, 1024,
+    shm.SIrusr|shm.SIwusr|shm.SIrgrp|shm.SIwgrp, shm.IpcCreat)
 if err != nil {
-	t.Fatal(err)
+    t.Fatal(err)
 }
-err = seg2.Detach()
-if err != nil {
-	t.Fatal(err)
-}
-
 ```
+
+Write data and detach:
+
+```go
+if err := seg1.Write([]byte("hello")); err != nil {
+    t.Fatal(err)
+}
+if err := seg1.Detach(); err != nil {
+    t.Fatal(err)
+}
+```
+
+From another process, attach with the same key:
+
+```go
+seg2, err := shm.NewSharedMemorySegment(0x1, 1024, 0, shm.Rdonly)
+if err != nil {
+    t.Fatal(err)
+}
+```
+
+Read data and detach:
+
+```go
+buf := make([]byte, 1024)
+n, err := seg2.Read(buf)
+if err != nil {
+    t.Fatal(err)
+}
+if err := seg2.Detach(); err != nil {
+    t.Fatal(err)
+}
+_ = buf[:n]
+```
+
+When the last process is done with the segment, call `Remove()` to
+destroy it (equivalent to `shmctl(IPC_RMID)`).
+
+## Requirements
+
+- Go 1.26+
+- No cgo
+- Unix platform (Linux or darwin)
