@@ -5,10 +5,10 @@ package tests
 import (
 	"errors"
 	"hash/fnv"
-	"os"
 	"syscall"
 	"testing"
 
+	"github.com/rustatian/ipc/apis"
 	"github.com/rustatian/ipc/shm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,34 +16,19 @@ import (
 
 const testData = "hello my dear friend"
 
-// testKey produces a deterministic per-test SysV key unlikely to collide with
-// other tests or running processes. Folding t.Name() into 31 bits keeps it a
-// positive int and stable across runs of the same test.
-func testKey(t *testing.T) int {
+// interfaceConformance is a compile-time assertion: SharedMemorySegment
+// must implement the apis.SharedMemory interface. If the interface or the
+// struct drift out of sync, this line fails to compile.
+var _ apis.SharedMemory = (*shm.SharedMemorySegment)(nil)
+
+// testKey produces a deterministic per-test SysV key unlikely to collide
+// with other tests or running processes. Folding t.Name() keeps it stable
+// across runs of the same test.
+func testKey(t testing.TB) int {
 	t.Helper()
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(t.Name()))
 	return int(h.Sum32() & 0x7FFFFFFF)
-}
-
-func TestNewSharedMemoryPosix(t *testing.T) {
-	if _, err := os.Stat(shm.PosixShmDir); err != nil {
-		t.Skipf("%s is not available on this platform: %v", shm.PosixShmDir, err)
-	}
-	seg, err := shm.NewSharedMemoryPosix("ipc-test-posix", 1024, 0)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = seg.Detach()
-		_ = seg.Remove()
-	})
-
-	require.NoError(t, seg.Write([]byte(testData)))
-
-	buf := make([]byte, len(testData))
-	n, err := seg.Read(buf)
-	require.NoError(t, err)
-	assert.Equal(t, len(testData), n)
-	assert.Equal(t, testData, string(buf))
 }
 
 func TestNewSharedMemorySegment(t *testing.T) {
@@ -78,11 +63,14 @@ func TestAttachToShmSegment(t *testing.T) {
 		_ = seg1.Remove()
 	})
 
-	seg1.Clear()
+	require.NoError(t, seg1.Clear())
 	require.NoError(t, seg1.Write([]byte(testData)))
 	require.NoError(t, seg1.Detach())
 
-	seg2, err := shm.AttachToShmSegment(seg1.ID(), 1024)
+	id, ok := seg1.ID()
+	require.True(t, ok, "SysV segment should expose an ID")
+
+	seg2, err := shm.AttachToShmSegment(id, 1024)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = seg2.Detach()
@@ -108,11 +96,6 @@ func TestWriteRejectsOversizedInput(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// TestIpcExclRejectsExistingSegment verifies the exclusive-creation contract:
-// with IpcCreat|IpcExcl, a second attempt to create a segment that already
-// exists fails with EEXIST. This is how callers detect leftover segments
-// from a crashed previous run or arbitrate which process "wins" creation
-// in a multi-process startup race.
 func TestIpcExclRejectsExistingSegment(t *testing.T) {
 	key := testKey(t)
 
@@ -123,21 +106,20 @@ func TestIpcExclRejectsExistingSegment(t *testing.T) {
 		_ = first.Remove()
 	})
 
-	// Second exclusive create on the same key must fail with EEXIST.
 	_, err = shm.NewSharedMemorySegment(key, 64, shm.SIrusr|shm.SIwusr, shm.IpcCreat|shm.IpcExcl)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, syscall.EEXIST)
 
-	// Plain IpcCreat (without IpcExcl) should still succeed — it attaches
-	// to the existing segment rather than failing.
 	second, err := shm.NewSharedMemorySegment(key, 64, shm.SIrusr|shm.SIwusr, shm.IpcCreat)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = second.Detach()
 	})
-	assert.Equal(t, first.ID(), second.ID(), "both handles should reference the same segment")
 
-	// And ensure the error chain is walkable for callers using errors.Is.
+	firstID, _ := first.ID()
+	secondID, _ := second.ID()
+	assert.Equal(t, firstID, secondID, "both handles should reference the same segment")
+
 	_, err = shm.NewSharedMemorySegment(key, 64, shm.SIrusr|shm.SIwusr, shm.IpcCreat|shm.IpcExcl)
 	assert.True(t, errors.Is(err, syscall.EEXIST))
 }
@@ -156,9 +138,68 @@ func TestReadAfterDetach(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// Write and Clear must error after Detach, and Detach itself must be
+// idempotent.
+func TestWriteClearAfterDetach(t *testing.T) {
+	key := testKey(t)
+	seg, err := shm.NewSharedMemorySegment(key, 16, shm.SIrusr|shm.SIwusr, shm.IpcCreat)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = seg.Remove()
+	})
+
+	require.NoError(t, seg.Detach())
+
+	assert.Error(t, seg.Write([]byte("x")), "Write after Detach must error")
+	assert.Error(t, seg.Clear(), "Clear after Detach must error")
+
+	// Detach is idempotent.
+	require.NoError(t, seg.Detach())
+}
+
+// Size and ID getters return the expected values for a SysV segment.
+func TestSizeAndID(t *testing.T) {
+	key := testKey(t)
+	seg, err := shm.NewSharedMemorySegment(key, 256, shm.SIrusr|shm.SIwusr, shm.IpcCreat)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = seg.Detach()
+		_ = seg.Remove()
+	})
+
+	assert.Equal(t, uint(256), seg.Size())
+
+	id, ok := seg.ID()
+	assert.True(t, ok, "SysV segment must have an ID")
+	assert.NotZero(t, id)
+}
+
+// Size and validation rejection paths.
+func TestInputValidation(t *testing.T) {
+	t.Run("zero size rejected", func(t *testing.T) {
+		_, err := shm.NewSharedMemorySegment(testKey(t), 0, 0600, shm.IpcCreat)
+		assert.Error(t, err)
+	})
+	t.Run("zero size on Attach rejected", func(t *testing.T) {
+		_, err := shm.AttachToShmSegment(1, 0)
+		assert.Error(t, err)
+	})
+}
+
+// Remove is idempotent — the second call is a no-op.
+func TestRemoveIdempotent(t *testing.T) {
+	key := testKey(t)
+	seg, err := shm.NewSharedMemorySegment(key, 16, shm.SIrusr|shm.SIwusr, shm.IpcCreat)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = seg.Detach() })
+
+	require.NoError(t, seg.Remove(), "first Remove should succeed")
+	require.NoError(t, seg.Remove(), "second Remove should be a no-op")
+}
+
 func BenchmarkAttachToShmSegment_READ(b *testing.B) {
 	bigJSONLen := len(BigJSON)
-	key := 0x10
+	key := testKey(b)
 	seg1, err := shm.NewSharedMemorySegment(key, uint(bigJSONLen), shm.SIrusr|shm.SIwusr|shm.SIrgrp|shm.SIwgrp, shm.IpcCreat)
 	if err != nil {
 		b.Fatal(err)
@@ -167,7 +208,7 @@ func BenchmarkAttachToShmSegment_READ(b *testing.B) {
 		_ = seg1.Remove()
 	})
 
-	seg1.Clear()
+	_ = seg1.Clear()
 	if err := seg1.Write([]byte(testData)); err != nil {
 		b.Fatal(err)
 	}
@@ -175,7 +216,8 @@ func BenchmarkAttachToShmSegment_READ(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	seg2, err := shm.AttachToShmSegment(seg1.ID(), uint(bigJSONLen))
+	id, _ := seg1.ID()
+	seg2, err := shm.AttachToShmSegment(id, uint(bigJSONLen))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -195,7 +237,7 @@ func BenchmarkAttachToShmSegment_READ(b *testing.B) {
 
 func BenchmarkAttachToShmSegment_WRITE(b *testing.B) {
 	bigJSONLen := len(BigJSON)
-	key := 0x20
+	key := testKey(b)
 	seg, err := shm.NewSharedMemorySegment(key, uint(bigJSONLen), shm.SIrusr|shm.SIwusr|shm.SIrgrp|shm.SIwgrp, shm.IpcCreat)
 	if err != nil {
 		b.Fatal(err)
@@ -205,7 +247,7 @@ func BenchmarkAttachToShmSegment_WRITE(b *testing.B) {
 		_ = seg.Remove()
 	})
 
-	seg.Clear()
+	_ = seg.Clear()
 	payload := []byte(testData)
 	b.ReportAllocs()
 
@@ -213,6 +255,6 @@ func BenchmarkAttachToShmSegment_WRITE(b *testing.B) {
 		if err := seg.Write(payload); err != nil {
 			b.Fatal(err)
 		}
-		seg.Clear()
+		_ = seg.Clear()
 	}
 }

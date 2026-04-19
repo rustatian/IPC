@@ -4,27 +4,30 @@ package semaphore
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"sync/atomic"
 	"syscall"
 	"unsafe"
 )
 
-// Darwin POSIX named semaphores (syscall numbers 268–274). Unlike SysV
-// semctl these have simple non-variadic signatures, so raw syscall works
-// without going through libSystem.
+// Darwin POSIX named semaphores. syscall.SYS_SEM_* constants expose the
+// kernel traps; these have fixed-argument signatures (the variadic C
+// sem_open is a libc convenience, not the kernel interface), so raw
+// syscall works without going through libSystem.
 
 const defaultPerm = 0600
 
-// semFailed is the POSIX SEM_FAILED sentinel — (void*)-1. If sem_open
-// returns this, the call failed and errno is set.
+// semFailed is the POSIX SEM_FAILED sentinel — (void*)-1. sem_open
+// returns this on failure and sets errno.
 const semFailed = ^uintptr(0)
 
 // Semaphore is a Darwin-backed named counting semaphore.
 type Semaphore struct {
-	name   string
-	handle uintptr
-	closed atomic.Bool
+	name     string
+	handle   uintptr
+	closed   atomic.Bool
+	unlinked atomic.Bool
 }
 
 func normalizeName(name string) (string, error) {
@@ -78,12 +81,13 @@ func open(name string, oflag int, permission int, initial uint) (*Semaphore, err
 		0, 0,
 	)
 	if handle == semFailed {
+		// In the (unlikely) event errno is zero, surface an explicit
+		// error rather than the nonsense "sem_open: no error" message.
+		if errno == 0 {
+			return nil, fmt.Errorf("sem_open %q: SEM_FAILED returned with errno=0", normalized)
+		}
 		return nil, os.NewSyscallError("sem_open", errno)
 	}
-	if errno != 0 {
-		return nil, os.NewSyscallError("sem_open", errno)
-	}
-
 	return &Semaphore{name: normalized, handle: handle}, nil
 }
 
@@ -128,7 +132,8 @@ func (s *Semaphore) TryWait() error {
 	return nil
 }
 
-// Close releases this process's handle. The kernel object persists until
+// Close releases this process's handle. Idempotent: a second call returns
+// nil without re-invoking the syscall. The kernel object persists until
 // Unlink is called (typically by the creator).
 func (s *Semaphore) Close() error {
 	if !s.closed.CompareAndSwap(false, true) {
@@ -143,8 +148,11 @@ func (s *Semaphore) Close() error {
 
 // Unlink removes the semaphore's name from the system. Existing handles
 // in other processes keep working until they Close; the kernel reclaims
-// the object when the last reference drops.
+// the object when the last reference drops. Idempotent.
 func (s *Semaphore) Unlink() error {
+	if !s.unlinked.CompareAndSwap(false, true) {
+		return nil
+	}
 	cName, err := syscall.ByteSliceFromString(s.name)
 	if err != nil {
 		return err

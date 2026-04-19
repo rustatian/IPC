@@ -1,4 +1,4 @@
-module github.com/rustatian/IPC/tests
+module github.com/rustatian/ipc/tests
 
 go 1.26.2
 
@@ -13,4 +13,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/rustatian/IPC => ../
+replace github.com/rustatian/ipc => ../

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"path/filepath"
 	"sync"
+	"sync/atomic"
 
 	"golang.org/x/sys/unix"
 )
@@ -33,10 +33,7 @@ const (
 	SIwgrp = SIwusr >> 3 // write by group
 )
 
-const (
-	defaultPerm = 0600
-	PosixShmDir = "/dev/shm"
-)
+const defaultPerm = 0600
 
 type segmentKind uint8
 
@@ -47,7 +44,7 @@ const (
 
 // SharedMemorySegment is a Unix shared memory segment mapped into the current
 // process. It can be backed by System V IPC (shmget/shmat) or by a POSIX
-// object in /dev/shm (open/ftruncate/mmap), distinguished internally.
+// object in /dev/shm (open/ftruncate/mmap); the POSIX backend is Linux-only.
 //
 // Operations on the segment are safe for concurrent use within one process;
 // coordination between processes is the caller's responsibility.
@@ -61,8 +58,9 @@ type SharedMemorySegment struct {
 	// POSIX only.
 	name string
 
-	size uint
-	data []byte
+	size    uint
+	data    []byte
+	removed atomic.Bool // make Remove idempotent across platforms
 }
 
 func mergePerm(flgs Flag, perm int) Flag {
@@ -80,55 +78,6 @@ func checkSize(size uint) error {
 		return fmt.Errorf("size %d exceeds math.MaxInt", size)
 	}
 	return nil
-}
-
-// NewSharedMemoryPosix creates (or opens) a POSIX shared-memory object by
-// name, backed by /dev/shm, and maps it into the process's address space.
-// On Linux this is equivalent to shm_open(3) + mmap(2).
-//
-// The returned segment must be detached with Detach and, when no longer
-// needed by any process, removed with Remove (shm_unlink).
-func NewSharedMemoryPosix(name string, size uint, permission int) (*SharedMemorySegment, error) {
-	if err := checkSize(size); err != nil {
-		return nil, err
-	}
-	if name == "" {
-		return nil, errors.New("name must not be empty")
-	}
-	if permission == 0 {
-		permission = defaultPerm
-	}
-
-	path := filepath.Join(PosixShmDir, name)
-
-	fd, err := unix.Open(path, unix.O_CREAT|unix.O_RDWR, uint32(permission))
-	if err != nil {
-		return nil, os.NewSyscallError("open", err)
-	}
-
-	if err := unix.Ftruncate(fd, int64(size)); err != nil { //nolint:gosec // bounded by checkSize
-		_ = unix.Close(fd)
-		return nil, os.NewSyscallError("ftruncate", err)
-	}
-
-	data, err := unix.Mmap(fd, 0, int(size), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED) //nolint:gosec // bounded by checkSize
-	if err != nil {
-		_ = unix.Close(fd)
-		return nil, os.NewSyscallError("mmap", err)
-	}
-
-	// Descriptor can be released; the mapping keeps the file alive.
-	if err := unix.Close(fd); err != nil {
-		_ = unix.Munmap(data)
-		return nil, os.NewSyscallError("close", err)
-	}
-
-	return &SharedMemorySegment{
-		kind: kindPosix,
-		name: name,
-		size: size,
-		data: data,
-	}, nil
 }
 
 // NewSharedMemorySegment creates (or opens) a System V shared-memory segment.
@@ -196,10 +145,11 @@ func AttachToShmSegment(shmID int, size uint, attachFlags ...Flag) (*SharedMemor
 	}, nil
 }
 
-// ID returns the System V SHMID of this segment, suitable for passing to
-// AttachToShmSegment in another process. Returns 0 for POSIX segments.
-func (s *SharedMemorySegment) ID() int {
-	return s.id
+// ID returns the System V SHMID of this segment and true if the segment is
+// SysV-backed (and thus has a meaningful ID for AttachToShmSegment).
+// Returns (0, false) for POSIX segments, which have no integer identifier.
+func (s *SharedMemorySegment) ID() (int, bool) {
+	return s.id, s.kind == kindSysV
 }
 
 // Size returns the segment size in bytes.
@@ -208,7 +158,7 @@ func (s *SharedMemorySegment) Size() uint {
 }
 
 // Write copies p into the segment. Returns an error if p is larger than the
-// segment.
+// segment or if the segment has been detached.
 func (s *SharedMemorySegment) Write(p []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -223,16 +173,21 @@ func (s *SharedMemorySegment) Write(p []byte) error {
 	return nil
 }
 
-// Clear zeroes the segment (like C's memset(..., 0, ...)).
-func (s *SharedMemorySegment) Clear() {
+// Clear zeroes the segment. Returns an error if the segment has been
+// detached (symmetric with Read/Write).
+func (s *SharedMemorySegment) Clear() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.data == nil {
+		return errors.New("segment is detached")
+	}
 	clear(s.data)
+	return nil
 }
 
-// Read copies up to len(p) bytes from the segment into p.
-// Returns the number of bytes copied.
+// Read copies up to len(p) bytes from the segment into p and returns the
+// number of bytes copied. Rejects zero-length buffers with an error.
 func (s *SharedMemorySegment) Read(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -248,7 +203,8 @@ func (s *SharedMemorySegment) Read(p []byte) (int, error) {
 
 // Detach unmaps the segment from this process's address space. For POSIX
 // segments it calls munmap; for SysV, shmdt. After Detach, further Read,
-// Write, or Clear calls return an error.
+// Write, or Clear calls return an error. Idempotent: a second Detach
+// returns nil.
 func (s *SharedMemorySegment) Detach() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -279,21 +235,25 @@ func (s *SharedMemorySegment) Detach() error {
 // shmctl(IPC_RMID). The kernel defers actual destruction until the last
 // process detaches, so calling Remove before all peers have detached is
 // safe — they keep working until they leave.
+//
+// Idempotent: a second call returns nil without re-invoking the syscall.
 func (s *SharedMemorySegment) Remove() error {
+	if !s.removed.CompareAndSwap(false, true) {
+		return nil
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	switch s.kind {
 	case kindPosix:
-		if err := unix.Unlink(filepath.Join(PosixShmDir, s.name)); err != nil {
-			return os.NewSyscallError("unlink", err)
-		}
+		return removePosixName(s.name)
 	case kindSysV:
 		if _, err := unix.SysvShmCtl(s.id, unix.IPC_RMID, nil); err != nil {
 			return os.NewSyscallError("shmctl", err)
 		}
+		return nil
 	default:
 		return fmt.Errorf("unknown segment kind: %d", s.kind)
 	}
-	return nil
 }
