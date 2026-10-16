@@ -6,7 +6,7 @@
 // creation, and expose Post / Wait / TryWait primitives. Under the hood
 // each supported platform uses its own native syscall family:
 //
-//   - Linux:  System V IPC (semget / semop / semctl) with the name hashed
+//   - Linux (except 386): System V IPC (semget / semop / semctl) with the name hashed
 //     to a 32-bit integer key. SysV syscalls have stable ABI and
 //     work reliably via raw syscalls.
 //

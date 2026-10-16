@@ -75,7 +75,7 @@ func open(name string, oflag int, permission int, initial uint) (*Semaphore, err
 	handle, _, errno := syscall.Syscall6(
 		syscall.SYS_SEM_OPEN,
 		uintptr(unsafe.Pointer(&cName[0])),
-		uintptr(oflag), //nolint:gosec // kernel oflag bits are always positive
+		uintptr(oflag),
 		uintptr(permission),
 		uintptr(initial),
 		0, 0,

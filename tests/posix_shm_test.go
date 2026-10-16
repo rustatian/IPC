@@ -12,6 +12,7 @@ import (
 	"github.com/rustatian/ipc/shm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
 
 const testData = "hello my dear friend"
@@ -81,6 +82,58 @@ func TestAttachToShmSegment(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []byte(testData), buf)
+}
+
+func TestSharedMemoryReadOnly(t *testing.T) {
+	for _, method := range []string{"key", "id"} {
+		t.Run(method, func(t *testing.T) {
+			key := testKey(t)
+			owner, err := shm.NewSharedMemorySegment(key, 64, 0600, shm.IpcCreat|shm.IpcExcl)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = owner.Detach()
+				_ = owner.Remove()
+			})
+			require.NoError(t, owner.Write([]byte(testData)))
+
+			var reader *shm.SharedMemorySegment
+			if method == "key" {
+				reader, err = shm.NewSharedMemorySegment(key, 64, 0600, shm.IpcCreat|shm.Rdonly)
+			} else {
+				id, _ := owner.ID()
+				reader, err = shm.AttachToShmSegment(id, 64, shm.Rdonly)
+			}
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = reader.Detach() })
+
+			buf := make([]byte, len(testData))
+			_, err = reader.Read(buf)
+			require.NoError(t, err)
+			assert.Equal(t, testData, string(buf))
+			assert.Error(t, reader.Write([]byte("overwrite")))
+			assert.Error(t, reader.Clear())
+
+			_, err = owner.Read(buf)
+			require.NoError(t, err)
+			assert.Equal(t, testData, string(buf), "read-only operations must preserve the data")
+		})
+	}
+}
+
+func TestNewSharedMemorySegmentReadOnlyPermissions(t *testing.T) {
+	key := testKey(t)
+	id, err := unix.SysvShmGet(key, 64, unix.IPC_CREAT|unix.IPC_EXCL|0400)
+	require.NoError(t, err)
+	t.Cleanup(func() { _, _ = unix.SysvShmCtl(id, unix.IPC_RMID, nil) })
+
+	seg, err := shm.NewSharedMemorySegment(key, 64, 0400, shm.Rdonly)
+	require.NoError(t, err, "read-only attachment must not require write permission")
+	t.Cleanup(func() { _ = seg.Detach() })
+
+	buf := make([]byte, 64)
+	_, err = seg.Read(buf)
+	require.NoError(t, err)
+	assert.Equal(t, make([]byte, 64), buf)
 }
 
 func TestWriteRejectsOversizedInput(t *testing.T) {

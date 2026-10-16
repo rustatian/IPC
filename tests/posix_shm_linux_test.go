@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/rustatian/ipc/shm"
@@ -37,6 +38,26 @@ func TestNewSharedMemoryPosix(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, len(testData), n)
 	assert.Equal(t, testData, string(buf))
+}
+
+func TestPosixRejectsSymlink(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "target")
+	require.NoError(t, os.WriteFile(target, []byte(testData), 0600))
+
+	name := posixShmName(t)
+	link := filepath.Join(shm.PosixShmDir, name[1:])
+	require.NoError(t, os.Symlink(target, link))
+	t.Cleanup(func() { _ = os.Remove(link) })
+
+	seg, err := shm.NewSharedMemoryPosix(name, 1, 0)
+	if seg != nil {
+		t.Cleanup(func() { _ = seg.Detach() })
+	}
+	assert.ErrorIs(t, err, syscall.ELOOP)
+
+	data, err := os.ReadFile(target)
+	require.NoError(t, err)
+	assert.Equal(t, testData, string(data), "symlink target must not be truncated")
 }
 
 // POSIX Remove must unlink the backing file, and a fresh create of the

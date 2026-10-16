@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux && !386
 
 package semaphore
 
@@ -80,7 +80,7 @@ func OpenSemaphore(name string) (*Semaphore, error) {
 		return nil, err
 	}
 	key := nameToKey(normalized)
-	semid, _, errno := syscall.Syscall(syscall.SYS_SEMGET, uintptr(uint(key)), 1, 0) //nolint:gosec
+	semid, _, errno := syscall.Syscall(syscall.SYS_SEMGET, uintptr(uint(key)), 1, 0)
 	if errno != 0 {
 		return nil, os.NewSyscallError("semget", errno)
 	}
@@ -112,7 +112,7 @@ func openOrCreate(name string, permission int, initial uint, exclusive bool) (_ 
 	// First attempt: exclusive create. Always try this so we can tell if
 	// we were the creator (and thus the one responsible for SETVAL).
 	createFlags := uintptr(permission) | ipcCreat | ipcExcl
-	semid, _, errno := syscall.Syscall(syscall.SYS_SEMGET, uintptr(uint(key)), 1, createFlags) //nolint:gosec
+	semid, _, errno := syscall.Syscall(syscall.SYS_SEMGET, uintptr(uint(key)), 1, createFlags)
 	switch {
 	case errno == 0:
 		// We created the set; initialize the counter.
@@ -130,7 +130,7 @@ func openOrCreate(name string, permission int, initial uint, exclusive bool) (_ 
 			return nil, false, os.NewSyscallError("semget", errno)
 		}
 		// Fall through to plain attach.
-		semid, _, errno = syscall.Syscall(syscall.SYS_SEMGET, uintptr(uint(key)), 1, uintptr(permission)) //nolint:gosec
+		semid, _, errno = syscall.Syscall(syscall.SYS_SEMGET, uintptr(uint(key)), 1, uintptr(permission))
 		if errno != 0 {
 			return nil, false, os.NewSyscallError("semget", errno)
 		}

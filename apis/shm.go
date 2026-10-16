@@ -10,10 +10,10 @@ type SharedMemory interface {
 	// an error if the segment has been detached.
 	Read(p []byte) (int, error)
 	// Write copies p into the segment. Returns an error if len(p) exceeds
-	// the segment size or if the segment has been detached.
+	// the segment size or if the segment is read-only or has been detached.
 	Write(p []byte) error
 	// Clear zeroes the segment (like C's memset(..., 0, ...)). Returns an
-	// error if the segment has been detached.
+	// error if the segment is read-only or has been detached.
 	Clear() error
 	// Size returns the segment size in bytes.
 	Size() uint

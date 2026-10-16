@@ -53,7 +53,8 @@ type SharedMemorySegment struct {
 	kind segmentKind
 
 	// SysV only.
-	id int
+	id       int
+	readOnly bool
 
 	// POSIX only.
 	name string
@@ -85,7 +86,7 @@ func checkSize(size uint) error {
 //	key        - unique identifier (see ftok(3) for systematic generation).
 //	size       - size in bytes.
 //	permission - octal mode; defaults to 0600 when zero.
-//	flags      - any of IpcCreat, IpcExcl.
+//	flags      - any of IpcCreat, IpcExcl; Rdonly attaches read-only.
 //	             See https://github.com/torvalds/linux/blob/master/include/uapi/linux/ipc.h
 func NewSharedMemorySegment(key int, size uint, permission int, flags ...Flag) (*SharedMemorySegment, error) {
 	if err := checkSize(size); err != nil {
@@ -96,24 +97,15 @@ func NewSharedMemorySegment(key int, size uint, permission int, flags ...Flag) (
 	for _, f := range flags {
 		createFlags |= f
 	}
-	createFlags = mergePerm(createFlags, permission)
+	attachFlags := createFlags & Rdonly
+	createFlags = mergePerm(createFlags&^Rdonly, permission)
 
-	id, err := unix.SysvShmGet(key, int(size), int(createFlags)) //nolint:gosec // bounded by checkSize
+	id, err := unix.SysvShmGet(key, int(size), int(createFlags))
 	if err != nil {
 		return nil, os.NewSyscallError("shmget", err)
 	}
 
-	data, err := unix.SysvShmAttach(id, 0, 0)
-	if err != nil {
-		return nil, os.NewSyscallError("shmat", err)
-	}
-
-	return &SharedMemorySegment{
-		kind: kindSysV,
-		id:   id,
-		size: size,
-		data: data,
-	}, nil
+	return AttachToShmSegment(id, size, attachFlags)
 }
 
 // AttachToShmSegment attaches to an existing System V shared-memory segment
@@ -138,10 +130,11 @@ func AttachToShmSegment(shmID int, size uint, attachFlags ...Flag) (*SharedMemor
 	}
 
 	return &SharedMemorySegment{
-		kind: kindSysV,
-		id:   shmID,
-		size: size,
-		data: data,
+		kind:     kindSysV,
+		id:       shmID,
+		readOnly: flgs&Rdonly != 0,
+		size:     size,
+		data:     data,
 	}, nil
 }
 
@@ -158,13 +151,16 @@ func (s *SharedMemorySegment) Size() uint {
 }
 
 // Write copies p into the segment. Returns an error if p is larger than the
-// segment or if the segment has been detached.
+// segment or if the segment is read-only or has been detached.
 func (s *SharedMemorySegment) Write(p []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.data == nil {
 		return errors.New("segment is detached")
+	}
+	if s.readOnly {
+		return errors.New("segment is read-only")
 	}
 	if len(p) > len(s.data) {
 		return fmt.Errorf("write size %d exceeds segment size %d", len(p), len(s.data))
@@ -173,14 +169,17 @@ func (s *SharedMemorySegment) Write(p []byte) error {
 	return nil
 }
 
-// Clear zeroes the segment. Returns an error if the segment has been
-// detached (symmetric with Read/Write).
+// Clear zeroes the segment. Returns an error if the segment is read-only
+// or has been detached.
 func (s *SharedMemorySegment) Clear() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.data == nil {
 		return errors.New("segment is detached")
+	}
+	if s.readOnly {
+		return errors.New("segment is read-only")
 	}
 	clear(s.data)
 	return nil

@@ -14,7 +14,7 @@ semaphores. Implemented entirely via raw system calls; **no cgo required**.
 |---------------------------|------------------|----------------|
 | `shm` — SysV segments     | Linux, darwin    | `SysvShmGet` / `SysvShmAttach` / `SysvShmDetach` / `SysvShmCtl` via `golang.org/x/sys/unix` |
 | `shm` — POSIX `/dev/shm`  | Linux only       | `open` + `ftruncate` + `mmap` + `unlink` raw syscalls; equivalent to glibc's `shm_open(3)` |
-| `semaphore`               | Linux, darwin    | SysV (`SEMGET`/`SEMOP`/`SEMCTL`) on Linux; POSIX `sem_*` syscalls on darwin — unified Go API |
+| `semaphore`               | Linux (except 386), darwin | SysV (`SEMGET`/`SEMOP`/`SEMCTL`) on Linux; POSIX `sem_*` syscalls on darwin — unified Go API |
 
 The `semaphore` package presents a single name-based API on every
 platform, dispatching to the native syscall family that works best there:
@@ -118,6 +118,9 @@ if err := seg2.Detach(); err != nil {
 }
 _ = buf[:n]
 ```
+
+`shm.Rdonly` is supported by both `NewSharedMemorySegment` and
+`AttachToShmSegment`. `Write` and `Clear` return errors on read-only segments.
 
 When the last process is done with the segment, call `Remove()` to
 destroy it (equivalent to `shmctl(IPC_RMID)`).

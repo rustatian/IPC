@@ -69,7 +69,7 @@ func NewSharedMemoryPosix(name string, size uint, permission int) (*SharedMemory
 	// glibc's shm_open layout: shm_open("/foo", ...) → /dev/shm/foo.
 	path := filepath.Join(PosixShmDir, name[1:])
 
-	fd, err := unix.Open(path, unix.O_CREAT|unix.O_RDWR, uint32(permission))
+	fd, err := unix.Open(path, unix.O_CREAT|unix.O_RDWR|unix.O_NOFOLLOW, uint32(permission))
 	if err != nil {
 		return nil, os.NewSyscallError("open", err)
 	}
@@ -79,7 +79,7 @@ func NewSharedMemoryPosix(name string, size uint, permission int) (*SharedMemory
 		return nil, os.NewSyscallError("ftruncate", err)
 	}
 
-	data, err := unix.Mmap(fd, 0, int(size), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED) //nolint:gosec // bounded by checkSize
+	data, err := unix.Mmap(fd, 0, int(size), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 	if err != nil {
 		_ = unix.Close(fd)
 		return nil, os.NewSyscallError("mmap", err)
