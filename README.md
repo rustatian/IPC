@@ -99,7 +99,7 @@ if err := seg1.Detach(); err != nil {
 From another process, attach with the same key:
 
 ```go
-seg2, err := shm.NewSharedMemorySegment(0x1, 1024, 0, shm.Rdonly)
+seg2, err := shm.NewSharedMemorySegment(0x1, 1024, shm.SIrusr, shm.Rdonly)
 if err != nil {
     t.Fatal(err)
 }

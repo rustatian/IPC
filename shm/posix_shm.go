@@ -8,7 +8,6 @@ import (
 	"math"
 	"os"
 	"sync"
-	"sync/atomic"
 
 	"golang.org/x/sys/unix"
 )
@@ -61,7 +60,7 @@ type SharedMemorySegment struct {
 
 	size    uint
 	data    []byte
-	removed atomic.Bool // make Remove idempotent across platforms
+	removed bool // guarded by mu; set only after successful removal
 }
 
 func mergePerm(flgs Flag, perm int) Flag {
@@ -235,24 +234,27 @@ func (s *SharedMemorySegment) Detach() error {
 // process detaches, so calling Remove before all peers have detached is
 // safe — they keep working until they leave.
 //
-// Idempotent: a second call returns nil without re-invoking the syscall.
+// Idempotent after successful removal. Failed removals can be retried.
 func (s *SharedMemorySegment) Remove() error {
-	if !s.removed.CompareAndSwap(false, true) {
-		return nil
-	}
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.removed {
+		return nil
+	}
+
 	switch s.kind {
 	case kindPosix:
-		return removePosixName(s.name)
+		if err := removePosixName(s.name); err != nil {
+			return err
+		}
 	case kindSysV:
 		if _, err := unix.SysvShmCtl(s.id, unix.IPC_RMID, nil); err != nil {
 			return os.NewSyscallError("shmctl", err)
 		}
-		return nil
 	default:
 		return fmt.Errorf("unknown segment kind: %d", s.kind)
 	}
+	s.removed = true
+	return nil
 }

@@ -91,6 +91,29 @@ func TestPosixRemoveUnlinksAndResets(t *testing.T) {
 	assert.Equal(t, make([]byte, 64), buf, "fresh segment should be zeroed")
 }
 
+func TestPosixRemoveRetriesAfterFailure(t *testing.T) {
+	name := posixShmName(t)
+	path := filepath.Join(shm.PosixShmDir, name[1:])
+	moved := path + "-moved"
+	seg, err := shm.NewSharedMemoryPosix(name, 64, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = seg.Detach()
+		_ = os.Remove(path)
+		_ = os.Remove(moved)
+	})
+
+	require.NoError(t, os.Rename(path, moved))
+	assert.ErrorIs(t, seg.Remove(), syscall.ENOENT)
+	assert.ErrorIs(t, seg.Remove(), syscall.ENOENT, "a failed removal must not report success on retry")
+
+	require.NoError(t, os.Rename(moved, path))
+	require.NoError(t, seg.Remove())
+	_, err = os.Stat(path)
+	assert.ErrorIs(t, err, os.ErrNotExist)
+	require.NoError(t, seg.Remove(), "successful removal must remain idempotent")
+}
+
 // Path-traversal and invalid-name inputs are rejected before reaching
 // the filesystem.
 func TestPosixNameValidation(t *testing.T) {
